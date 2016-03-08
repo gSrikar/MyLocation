@@ -91,7 +91,8 @@ public class MainActivity extends AppCompatActivity implements
     // Unique tag for the error dialog fragment
     private static final String DIALOG_ERROR = "dialog_error";
 
-    private static final int REQUEST_LOCATION = 2;
+    private static final int REQUEST_LOCATION = 11;
+    private static final int REQUEST_LOCATION_UPDATES = 12;
 
     private CoordinatorLayout coordinatorLayout;
 
@@ -256,7 +257,26 @@ public class MainActivity extends AppCompatActivity implements
      * Start Location Updates.
      */
     private void startLocationUpdates() {
-        LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
+        if ((ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) && (ActivityCompat.checkSelfPermission(this,
+                Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED)) {
+            // Check Permissions Now
+            if ((ActivityCompat.shouldShowRequestPermissionRationale(this,
+                    Manifest.permission.ACCESS_FINE_LOCATION)) &&
+                    ActivityCompat.shouldShowRequestPermissionRationale(this,
+                            Manifest.permission.ACCESS_COARSE_LOCATION)) {
+                // Display UI and wait for user interaction
+                Snackbar.make(coordinatorLayout, "Permission are necessary to access location", Snackbar.LENGTH_LONG).show();
+            } else {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION},
+                        REQUEST_LOCATION_UPDATES);
+            }
+        } else {
+            // Permission has been granted, continue as usual
+            LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
+        }
     }
 
     /**
@@ -331,6 +351,7 @@ public class MainActivity extends AppCompatActivity implements
                     ActivityCompat.shouldShowRequestPermissionRationale(this,
                             Manifest.permission.ACCESS_COARSE_LOCATION)) {
                 // Display UI and wait for user interaction
+                Snackbar.make(coordinatorLayout, "Permission are necessary to access location", Snackbar.LENGTH_LONG).show();
             } else {
                 ActivityCompat.requestPermissions(this,
                         new String[]{Manifest.permission.ACCESS_FINE_LOCATION,
@@ -349,8 +370,23 @@ public class MainActivity extends AppCompatActivity implements
         if (requestCode == REQUEST_LOCATION) {
             if (grantResults.length == 1 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 // We can now safely use the API we requested access to
+                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+
+                    return;
+                }
                 mLastLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
                 displayLocationUI();
+            } else {
+                // Permission was denied or request was cancelled
+            }
+        } else if (requestCode == REQUEST_LOCATION_UPDATES) {
+            if (grantResults.length == 1 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // We can now safely use the API we requested access to
+                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+
+                    return;
+                }
+                LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
             } else {
                 // Permission was denied or request was cancelled
             }
