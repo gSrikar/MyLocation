@@ -4,4 +4,5 @@
     <!-- Strings in the Action Menu-->
     <string name="action_share">Share</string>
     <string name="action_about">About</string>
+    <string name="request_location_permission">This app needs location permission.</string>
 </resources>

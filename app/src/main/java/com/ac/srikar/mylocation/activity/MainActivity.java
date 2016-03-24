@@ -1,6 +1,8 @@
 package com.ac.srikar.mylocation.activity;
 
 import android.Manifest;
+import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -8,10 +10,10 @@ import android.content.IntentSender.SendIntentException;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
 import android.support.design.widget.CoordinatorLayout;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
-import android.support.v4.app.DialogFragment;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
@@ -90,9 +92,10 @@ public class MainActivity extends AppCompatActivity implements
     private static final int REQUEST_RESOLVE_ERROR = 1001;
     // Unique tag for the error dialog fragment
     private static final String DIALOG_ERROR = "dialog_error";
+    // Unique taf for runtime permission conformation dialog fragment
+    private static final String FRAGMENT_DIALOG = "dialog";
 
     private static final int REQUEST_LOCATION = 11;
-    private static final int REQUEST_LOCATION_UPDATES = 12;
 
     private CoordinatorLayout coordinatorLayout;
 
@@ -260,23 +263,10 @@ public class MainActivity extends AppCompatActivity implements
         if ((ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED) && (ActivityCompat.checkSelfPermission(this,
                 Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED)) {
-            // Check Permissions Now
-            if ((ActivityCompat.shouldShowRequestPermissionRationale(this,
-                    Manifest.permission.ACCESS_FINE_LOCATION)) &&
-                    ActivityCompat.shouldShowRequestPermissionRationale(this,
-                            Manifest.permission.ACCESS_COARSE_LOCATION)) {
-                // Display UI and wait for user interaction
-                Snackbar.make(coordinatorLayout, "Permission are necessary to access location", Snackbar.LENGTH_LONG).show();
-            } else {
-                ActivityCompat.requestPermissions(this,
-                        new String[]{Manifest.permission.ACCESS_FINE_LOCATION,
-                                Manifest.permission.ACCESS_COARSE_LOCATION},
-                        REQUEST_LOCATION_UPDATES);
-            }
-        } else {
-            // Permission has been granted, continue as usual
-            LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
+            requestLocationPermissions();
         }
+        // Permission has been granted, continue as usual
+        LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
     }
 
     /**
@@ -346,49 +336,38 @@ public class MainActivity extends AppCompatActivity implements
                 != PackageManager.PERMISSION_GRANTED) && (ActivityCompat.checkSelfPermission(this,
                 Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED)) {
             // Check Permissions Now
-            if ((ActivityCompat.shouldShowRequestPermissionRationale(this,
-                    Manifest.permission.ACCESS_FINE_LOCATION)) &&
-                    ActivityCompat.shouldShowRequestPermissionRationale(this,
-                            Manifest.permission.ACCESS_COARSE_LOCATION)) {
-                // Display UI and wait for user interaction
-                Snackbar.make(coordinatorLayout, "Permission are necessary to access location", Snackbar.LENGTH_LONG).show();
-            } else {
-                ActivityCompat.requestPermissions(this,
-                        new String[]{Manifest.permission.ACCESS_FINE_LOCATION,
-                                Manifest.permission.ACCESS_COARSE_LOCATION},
-                        REQUEST_LOCATION);
-            }
+            requestLocationPermissions();
+        }
+        // Permission has been granted, continue as usual
+        mLastLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
+        displayLocationUI();
+    }
+
+    private void requestLocationPermissions() {
+        if ((ActivityCompat.shouldShowRequestPermissionRationale(this,
+                Manifest.permission.ACCESS_FINE_LOCATION)) &&
+                ActivityCompat.shouldShowRequestPermissionRationale(this,
+                        Manifest.permission.ACCESS_COARSE_LOCATION)) {
+            // Display UI and wait for user interaction
+            new ConfirmationDialog().show(getFragmentManager(), FRAGMENT_DIALOG);
         } else {
-            // Permission has been granted, continue as usual
-            mLastLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
-            displayLocationUI();
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION},
+                    REQUEST_LOCATION);
         }
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
         if (requestCode == REQUEST_LOCATION) {
             if (grantResults.length == 1 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                // We can now safely use the API we requested access to
-                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-
-                    return;
-                }
-                mLastLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
-                displayLocationUI();
+                Snackbar.make(coordinatorLayout, "Necessary permissions are granted", Snackbar.LENGTH_SHORT).show();
             } else {
                 // Permission was denied or request was cancelled
-            }
-        } else if (requestCode == REQUEST_LOCATION_UPDATES) {
-            if (grantResults.length == 1 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                // We can now safely use the API we requested access to
-                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-
-                    return;
-                }
-                LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
-            } else {
-                // Permission was denied or request was cancelled
+                PermissionErrorDialog.newInstance(getString(R.string.request_location_permission))
+                        .show(getFragmentManager(), FRAGMENT_DIALOG);
             }
         }
     }
@@ -448,7 +427,7 @@ public class MainActivity extends AppCompatActivity implements
         Bundle args = new Bundle();
         args.putInt(DIALOG_ERROR, errorCode);
         dialogFragment.setArguments(args);
-        dialogFragment.show(getSupportFragmentManager(), "errorDialog");
+        dialogFragment.show(getFragmentManager(), "errorDialog");
     }
 
     /**
@@ -461,7 +440,7 @@ public class MainActivity extends AppCompatActivity implements
     /**
      * A fragment to display an error dialog
      */
-    public static class ErrorDialogFragment extends DialogFragment {
+    public static class ErrorDialogFragment extends android.app.DialogFragment {
         public ErrorDialogFragment() {
         }
 
@@ -533,6 +512,67 @@ public class MainActivity extends AppCompatActivity implements
                 mResolvingError = savedInstanceState.getBoolean(STATE_RESOLVING_ERROR_KEY, false);
             }
             displayLocationUI();
+        }
+    }
+
+    /**
+     * Shows an permission error message dialog.
+     */
+    public static class PermissionErrorDialog extends android.app.DialogFragment {
+        private static final String ARG_MESSAGE = "message";
+
+        public static PermissionErrorDialog newInstance(String message) {
+            PermissionErrorDialog dialog = new PermissionErrorDialog();
+            Bundle args = new Bundle();
+            args.putString(ARG_MESSAGE, message);
+            dialog.setArguments(args);
+            return dialog;
+        }
+
+        @Override
+        public Dialog onCreateDialog(Bundle savedInstanceState) {
+            final Activity activity = getActivity();
+            return new AlertDialog.Builder(activity)
+                    .setMessage(getArguments().getString(ARG_MESSAGE))
+                    .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialogInterface, int i) {
+                            activity.finish();
+                        }
+                    })
+                    .create();
+        }
+    }
+
+    /**
+     * Shows OK/Cancel confirmation dialog about location permissions.
+     */
+    public static class ConfirmationDialog extends android.app.DialogFragment {
+
+        @Override
+        public Dialog onCreateDialog(Bundle savedInstanceState) {
+            return new AlertDialog.Builder(getActivity())
+                    .setMessage(R.string.request_location_permission)
+                    .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            ActivityCompat.requestPermissions(getActivity(),
+                                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION,
+                                            Manifest.permission.ACCESS_COARSE_LOCATION},
+                                    REQUEST_LOCATION);
+                        }
+                    })
+                    .setNegativeButton(android.R.string.cancel,
+                            new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface dialog, int which) {
+                                    Activity activity = getActivity();
+                                    if (activity != null) {
+                                        activity.finish();
+                                    }
+                                }
+                            })
+                    .create();
         }
     }
 }
